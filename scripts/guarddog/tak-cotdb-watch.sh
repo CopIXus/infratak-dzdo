@@ -16,7 +16,7 @@ CRITICAL_THRESHOLD=$((CRITICAL_THRESHOLD_GB * 1024 * 1024 * 1024))
 # Get size of 'cot' database (TAK Server CoT data). Use postgres user.
 COT_SIZE=0
 if command -v psql >/dev/null 2>&1; then
-  COT_SIZE=$(sudo -u postgres psql -t -A -c "SELECT COALESCE(pg_database_size('cot'), 0);" 2>/dev/null || echo "0")
+  COT_SIZE=$(runuser -u postgres -- psql -t -A -c "SELECT COALESCE(pg_database_size('cot'), 0);" 2>/dev/null || echo "0")
 fi
 
 # If cot doesn't exist or we couldn't connect, try sum of all non-template DBs (fallback)
@@ -64,11 +64,11 @@ Things to check:
 1. Data Retention in TAK Server web UI (e.g. 1 day, run every hour).
 2. Retention process: systemctl status takserver (look for retention).
 3. If your install has it: systemctl status tak-db-cleanup.service
-   and: sudo journalctl -u tak-db-cleanup.service -f (for deletion activity).
+   and: journalctl -u tak-db-cleanup.service -f (for deletion activity).
 4. Reclaim disk after deletes (run as postgres):
-   sudo -u postgres psql -d cot -c 'VACUUM ANALYZE;'
+   runuser -u postgres -- psql -d cot -c 'VACUUM ANALYZE;'
    (For large tables, VACUUM FULL can reclaim more space but locks tables.)
-5. Row count: sudo -u postgres psql -d cot -t -c \"SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 5;\"
+5. Row count: runuser -u postgres -- psql -d cot -t -c \"SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 5;\"
 "
 
 [ -n "ALERT_EMAIL_PLACEHOLDER" ] && echo -e "$BODY" | mail -s "$SUBJ" "ALERT_EMAIL_PLACEHOLDER"

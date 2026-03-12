@@ -255,8 +255,18 @@ create_service() {
     if [ -f "$SERVICE_FILE" ]; then
         EXISTING_DIR=$(grep -E '^WorkingDirectory=' "$SERVICE_FILE" 2>/dev/null | cut -d= -f2- | tr -d ' ')
         if [ -n "$EXISTING_DIR" ] && [ -d "$EXISTING_DIR" ] && [ -f "$EXISTING_DIR/.config/auth.json" ]; then
-            USE_DIR="$EXISTING_DIR"
+            # Only reuse existing dir if python3 and app.py exist (avoid status-203/EXEC)
+            if [ -x "$EXISTING_DIR/.venv/bin/python3" ] && [ -f "$EXISTING_DIR/app.py" ]; then
+                USE_DIR="$EXISTING_DIR"
+            fi
         fi
+    fi
+
+    # Validate paths before writing service (prevents status-203/EXEC)
+    if [ ! -x "$USE_DIR/.venv/bin/python3" ] || [ ! -f "$USE_DIR/app.py" ]; then
+        echo -e "${RED}ERROR: Cannot find .venv/bin/python3 or app.py in $USE_DIR${NC}"
+        echo "  Run this script from the infra-TAK install directory (where start.sh and app.py live)."
+        exit 1
     fi
 
     PRIV_ENV=""

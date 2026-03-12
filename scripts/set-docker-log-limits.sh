@@ -65,5 +65,5 @@ fi
 
 echo ""
 echo "Docker log limits are set (50 MB per file, 3 files per container = 150 MB max per container)."
-echo "Restart Docker for limits to apply:  sudo systemctl restart docker"
+echo "Restart Docker for limits to apply:  sudo systemctl restart docker  (or dzdo on RHEL)"
 echo "Note: Existing containers will restart; do this in a maintenance window if needed."

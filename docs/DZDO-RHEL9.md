@@ -70,6 +70,18 @@ RHEL 9 often has FIPS mode enabled. Password hashing uses `pbkdf2:sha256` (FIPS-
 
 ## Troubleshooting
 
+**`status-203/EXEC` or service in `activating (auto-restart)`**
+
+The service could not execute the Python binary. Common causes:
+
+1. **Wrong install path** – Ensure you run `dzdo ./start.sh` from the infra-TAK directory (where `start.sh` and `app.py` are). If you cloned into a nested folder (e.g. `infratak-dzdo/infratak-dzdo/`), run from the inner directory that contains `app.py`.
+2. **Regenerate the service** – Remove the old unit and re-run: `dzdo rm -f /etc/systemd/system/takwerx-console.service && dzdo systemctl daemon-reload && dzdo ./start.sh`
+3. **Check paths** – `dzdo systemctl cat takwerx-console` shows the ExecStart path. Confirm `.venv/bin/python3` and `app.py` exist at that WorkingDirectory.
+
+**"No journal files were opened due to insufficient permissions"**
+
+View logs as root: `dzdo journalctl -u takwerx-console -n 50 --no-pager`
+
 **"Permission denied" or "command not found: sudo"**  
 Ensure you are using `dzdo` instead of `sudo` for all commands.
 

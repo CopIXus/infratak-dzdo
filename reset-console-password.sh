@@ -7,8 +7,8 @@ INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$INSTALL_DIR/.config"
 AUTH_FILE="$CONFIG_DIR/auth.json"
 
-if [ ! -d "$INSTALL_DIR/.venv" ]; then
-    echo "Error: .venv not found. Run this from the infra-TAK install directory."
+if [ ! -d "$INSTALL_DIR/.venv" ] || [ ! -x "$INSTALL_DIR/.venv/bin/python3" ]; then
+    echo "Error: .venv or .venv/bin/python3 not found. Run this from the infra-TAK install directory."
     exit 1
 fi
 

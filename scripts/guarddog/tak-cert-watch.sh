@@ -32,7 +32,7 @@ Action Required:
    systemctl status takserver-cert-renewal.timer
 
 2. Manual renewal if needed:
-   sudo /opt/tak/renew-letsencrypt.sh
+   sudo /opt/tak/renew-letsencrypt.sh  (or dzdo on RHEL)
 
 If renewal fails, clients will be unable to connect after expiration.
 "
