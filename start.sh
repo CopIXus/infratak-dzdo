@@ -180,7 +180,7 @@ first_time_setup() {
     PASS_HASH=$("$INSTALL_DIR/.venv/bin/python3" -c "
 from werkzeug.security import generate_password_hash
 import sys
-print(generate_password_hash(sys.argv[1]))
+print(generate_password_hash(sys.argv[1], method='pbkdf2:sha256'))
 " "$ADMIN_PASS")
 
     # Save auth config

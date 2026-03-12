@@ -11875,7 +11875,7 @@ def console_password_reset():
         return jsonify({'success': False, 'error': 'New password must be at least 8 characters'}), 400
     if new_pw != confirm:
         return jsonify({'success': False, 'error': 'New password and confirmation do not match'}), 400
-    auth['password_hash'] = generate_password_hash(new_pw)
+    auth['password_hash'] = generate_password_hash(new_pw, method='pbkdf2:sha256')
     auth['created'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     save_auth(auth)
     subprocess.Popen('sleep 2 && systemctl restart takwerx-console', shell=True,

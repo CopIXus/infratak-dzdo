@@ -64,6 +64,10 @@ The infra-TAK console runs as a systemd service with `User=root`. When it needs 
 | Unattended upgrades | unattended-upgrade | dnf-automatic (not waited on) |
 | GPG verification | debsig-verify | Skipped for RPM (use rpm --checksig if needed) |
 
+## FIPS Mode (RHEL 9)
+
+RHEL 9 often has FIPS mode enabled. Password hashing uses `pbkdf2:sha256` (FIPS-approved) instead of `scrypt` to avoid `ValueError: [digital envelope routines] unsupported`.
+
 ## Troubleshooting
 
 **"Permission denied" or "command not found: sudo"**  
