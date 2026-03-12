@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run this on the server over SSH when you can't log in after git pull.
 # It pins the console config path in the systemd unit and then resets your password.
-# Usage: sudo ./fix-console-after-pull.sh
+# Usage: sudo ./fix-console-after-pull.sh  (or dzdo ./fix-console-after-pull.sh on RHEL)
 # (Run from the infra-TAK directory you use for git pull, e.g. /root/infra-TAK)
 set -e
 SERVICE_FILE="/etc/systemd/system/takwerx-console.service"

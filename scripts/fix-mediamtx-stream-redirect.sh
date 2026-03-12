@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fix "too many redirects" on https://stream.<fqdn> by ensuring the LDAP overlay
 # is applied and LDAP_ENABLED=1 is set. Run on the server as root after MediaMTX deploy.
-# Usage: sudo bash fix-mediamtx-stream-redirect.sh
+# Usage: sudo bash fix-mediamtx-stream-redirect.sh (or dzdo on RHEL)
 # Then clear cookies for stream.<yourdomain> and try again.
 
 set -e

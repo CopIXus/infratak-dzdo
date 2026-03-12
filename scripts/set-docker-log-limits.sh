@@ -2,7 +2,7 @@
 ##############################################################################
 # Set Docker container log limits (max-size, max-file) to prevent a single
 # container (e.g. Node-RED, Authentik LDAP) from filling the disk.
-# Run once per server; then: sudo systemctl restart docker
+# Run once per server; then: sudo systemctl restart docker (or dzdo on RHEL)
 ##############################################################################
 
 set -e
@@ -16,7 +16,7 @@ if [ ! -d /etc/docker ]; then
 fi
 
 if [ "$EUID" -ne 0 ]; then
-    echo "Run as root: sudo $0"
+    echo "Run as root: sudo $0 (or dzdo $0 on RHEL)"
     exit 1
 fi
 

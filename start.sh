@@ -32,7 +32,7 @@ echo ""
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
     echo -e "${RED}ERROR: This script must be run as root${NC}"
-    echo "Please run: sudo $0"
+    echo "Please run: sudo $0 or dzdo $0"
     exit 1
 fi
 
@@ -66,7 +66,11 @@ detect_os() {
             ;;
         rocky|rhel)
             if [[ "$OS_VERSION" == 9* ]]; then
-                OS_TYPE="rocky-9"
+                if [[ "$OS_ID" == "rhel" ]]; then
+                    OS_TYPE="rhel-9"
+                else
+                    OS_TYPE="rocky-9"
+                fi
                 PKG_MGR="dnf"
             else
                 echo -e "${YELLOW}WARNING: $OS_NAME not tested. Rocky 9 recommended.${NC}"
@@ -88,9 +92,11 @@ detect_os() {
 }
 
 # ==========================================
-# Wait for Unattended Upgrades
+# Wait for Unattended Upgrades (Ubuntu/Debian only; RHEL uses dnf-automatic)
 # ==========================================
 wait_for_upgrades() {
+    # Skip on dnf systems - they use dnf-automatic, not unattended-upgrade
+    [ "$PKG_MGR" = "dnf" ] && return 0
     if pgrep -f "/usr/bin/unattended-upgrade$" > /dev/null 2>&1; then
         echo -e "${YELLOW}  System upgrades in progress, waiting...${NC}"
         SECONDS=0
@@ -253,6 +259,9 @@ create_service() {
         fi
     fi
 
+    PRIV_ENV=""
+    [ "$PKG_MGR" = "dnf" ] && PRIV_ENV="Environment=PRIV_CMD=dzdo
+"
     cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=infra-TAK - Team Awareness Kit Infrastructure Platform
@@ -268,8 +277,7 @@ RestartSec=5
 User=root
 Environment=PYTHONUNBUFFERED=1
 Environment=CONFIG_DIR=$USE_DIR/.config
-
-[Install]
+${PRIV_ENV}[Install]
 WantedBy=multi-user.target
 EOF
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""infra-TAK v0.1.8 - TAK Infrastructure Platform"""
+"""infra-TAK dzdo/RHEL9 fork - TAK Infrastructure Platform"""
 
 from flask import (Flask, render_template_string, request, jsonify,
     redirect, url_for, session, send_from_directory, make_response)
@@ -38,6 +38,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Pin config to env so auth works even if service WorkingDirectory and code path ever differ (e.g. after git pull)
 CONFIG_DIR = os.environ.get('CONFIG_DIR') or os.path.join(BASE_DIR, '.config')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
+# Privilege escalation: dzdo on RHEL/dzdo-only; sudo elsewhere
+PRIV_CMD = os.environ.get('PRIV_CMD', 'dzdo' if os.path.exists('/etc/redhat-release') else 'sudo')
 
 def _request_host_is_ip():
     """True if the request is to an IP address (backdoor), so we must not set cookie domain."""
@@ -67,7 +69,7 @@ def ensure_session_cookie_domain():
     except Exception:
         pass
 VERSION = "0.1.9-alpha"
-GITHUB_REPO = "takwerx/infra-TAK"
+GITHUB_REPO = "CopIXus/infratak-dzdo"
 CADDYFILE_PATH = "/etc/caddy/Caddyfile"
 # CloudTAK official icon (SVG data URL)
 CLOUDTAK_ICON = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgNzQuMyA0Ni42MiI+PGRlZnM+PHN0eWxlPi5jbHMtMXtmaWxsOnVybCgjbGluZWFyLWdyYWRpZW50LTIpO30uY2xzLTJ7ZmlsbDp1cmwoI2xpbmVhci1ncmFkaWVudCk7fTwvc3R5bGU+PGxpbmVhckdyYWRpZW50IGlkPSJsaW5lYXItZ3JhZGllbnQiIHgxPSIxNC4zOCIgeTE9IjguOTMiIHgyPSI2Ni45MiIgeTI9IjYxLjQ3IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjZmY5ODIwIi8+PHN0b3Agb2Zmc2V0PSIuNDIiIHN0b3AtY29sb3I9IiNmZmNlMDQiLz48c3RvcCBvZmZzZXQ9Ii40OSIgc3RvcC1jb2xvcj0iZ29sZCIvPjwvbGluZWFyR3JhZGllbnQ+PGxpbmVhckdyYWRpZW50IGlkPSJsaW5lYXItZ3JhZGllbnQtMiIgeDE9IjU5LjI3IiB5MT0iLS4zOCIgeDI9IjcyLjc0IiB5Mj0iMTIuMDgiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmZjk4MjAiLz48c3RvcCBvZmZzZXQ9Ii4yOSIgc3RvcC1jb2xvcj0iI2ZmYjYxMCIvPjxzdG9wIG9mZnNldD0iLjU3IiBzdG9wLWNvbG9yPSJnb2xkIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHBhdGggY2xhc3M9ImNscy0yIiBkPSJNNzIuMDUsMjMuNTVjLTEuMjYtMS44OC0zLjAxLTMuNDUtNS4yMS00LjY1LTEuODUtMS4wMS0zLjY5LTEuNTktNS4wNi0xLjkxLS40Mi0xLjc0LTEuMjMtNC4yOC0yLjc3LTYuODVDNTYuNDQsNS44OCw1MS4zNy42Nyw0MS43LjA2Yy0uNTktLjA0LTEuMTgtLjA2LTEuNzUtLjA2LTcuODIsMC0xMi4wNCwzLjUyLTE0LjE5LDYuNDctLjkxLDEuMjQtMS41MywyLjQ4LTEuOTUsMy41NS0uODYtLjEzLTEuODYtLjIyLTIuOTMtLjIyLTMuNTYsMC02LjUyLDEuMDgtOC41NCwzLjEzLTEuOTEsMS45Mi0zLjIsNC4yNi0zLjczLDYuNzUtLjA5LjQxLS4xNS44LS4xOSwxLjE2LS45NS40Ny0yLjEyLDEuMTYtMy4yOSwyLjExQzEuNTYsMjUuODMtLjIsMjkuNjcuMDIsMzQuMDZjLjIyLDQuNDEsMi4yNyw3Ljk2LDUuOTQsMTAuMjksMi42LDEuNjUsNS4xLDIuMTksNS4zOCwyLjIzbC4yMi4wM2guMjJzNDguODYsMCw0OC44NiwwaC4xcy4xLDAsLjEsMGMuMzQtLjAyLDMuMzktLjI2LDYuNTQtMi4xMywzLjA0LTEuOCw2LjctNS40NSw2LjkyLTEyLjU2LjEtMy4xOC0uNjYtNS45OS0yLjI0LTguMzZaTTE0LjQzLDE1YzEuNzUtMS43Nyw0LjI0LTIuMjYsNi40NS0yLjI2LDIuNzEsMCw0Ljk5LjczLDQuOTkuNzMsMCwwLDEuMzMtMTAuNTMsMTQuMDctMTAuNTMuNSwwLDEuMDMuMDIsMS41Ny4wNSwxNi4yNCwxLjAzLDE3Ljc0LDE2LjU0LDE3Ljc0LDE2LjU0LDAsMCw0LjY3LjQyLDguMjEsMy4zMS0zLjQ3LDMuMjItNC45NSw1LjE5LTEyLjc3LDUuNzUtOC42NS42MS03LjQ3LDMuOTUtNy40NywzLjk1bC00LjA1LTguOThoNS43OWMuMTQtMi44NS0uODctNS42NS01LjMxLTUuNjVoLTguNDlsLTYuNTYsMTQuNjJzMS45Ni0zLjMxLTYuNjktMy45NWMtNy42OS0uNTUtNy41OC0yLjY5LTEwLjYxLTUuODgtLjA2LS41OC0uMjYtNC4zLDMuMTMtNy43MloiLz48cGF0aCBjbGFzcz0iY2xzLTEiIGQ9Ik02MS43OSwzLjczaDIuNTl2LjY0aC0uOTN2Mi4zOGgtLjc0di0yLjM4aC0uOTN2LS42NFpNNjcuMDUsMy43M2wtLjc3LDIuMDMtLjc3LTIuMDNoLS45M3YzLjAzaC43di0ybC43MywyaC41NGwuNzMtMnYyaC43di0zLjAzaC0uOTNaIi8+PC9zdmc+"
@@ -1802,6 +1804,31 @@ def wait_for_apt_lock(log_fn, log_list):
             return True
         m, s = divmod(waited, 60)
         log_list.append(f"  ⏳ {m:02d}:{s:02d}")
+
+
+def wait_for_dnf_lock(log_fn, log_list):
+    """
+    Wait for dnf lock to release before installing packages (RHEL/Rocky).
+    Checks for running dnf process. Returns immediately if not locked.
+    """
+    def is_locked():
+        r = subprocess.run('pgrep -x dnf 2>/dev/null', shell=True, capture_output=True, text=True)
+        return bool(r.stdout.strip())
+    if not is_locked():
+        log_fn("✓ No dnf lock, continuing...")
+        return True
+    log_fn("⏳ dnf in use — waiting...")
+    waited = 0
+    while waited < 300:  # max 5 min
+        time.sleep(5)
+        waited += 5
+        if not is_locked():
+            log_fn("✓ dnf lock released")
+            return True
+        m, s = divmod(waited, 60)
+        log_list.append(f"  ⏳ {m:02d}:{s:02d}")
+    log_fn("⚠ Proceeding anyway after 5 min wait")
+    return True
 
 
 def install_le_cert_on_8446(takserver_host, log_fn, wait_for_cert=True):
@@ -3926,7 +3953,7 @@ services:
             time.sleep(poll_interval)
         if not api_ready:
             plog("✗ CloudTAK API did not respond in time — deploy failed.")
-            plog("  Check: docker logs cloudtak-api-1. If you see 404 for /api/connections, the backend is up — ensure you have pulled latest infra-TAK and restarted the console (sudo systemctl restart takwerx-console), then redeploy.")
+            plog(f"  Check: docker logs cloudtak-api-1. If you see 404 for /api/connections, the backend is up — ensure you have pulled latest infra-TAK and restarted the console ({PRIV_CMD} systemctl restart takwerx-console), then redeploy.")
             plog("  Otherwise wait and open the CloudTAK URL manually once it responds.")
             cloudtak_deploy_status.update({'running': False, 'error': True})
             return
@@ -9807,10 +9834,10 @@ def _apply_ldap_to_coreconfig():
                 patch_path = os.path.join(BASE_DIR, 'CoreConfig.ldap-patch.xml')
                 with open(patch_path, 'w') as f:
                     f.write(patched)
-                r = subprocess.run(['sudo', 'cp', os.path.abspath(patch_path), coreconfig_path],
+                r = subprocess.run([PRIV_CMD, 'cp', os.path.abspath(patch_path), coreconfig_path],
                     capture_output=True, text=True, timeout=10)
                 if r.returncode == 0:
-                    subprocess.run('sudo systemctl restart takserver 2>&1', shell=True, capture_output=True, text=True, timeout=60)
+                    subprocess.run(f'{PRIV_CMD} systemctl restart takserver 2>&1', shell=True, capture_output=True, text=True, timeout=60)
                 return True, 'CoreConfig already has LDAP (adminGroup restored — restart TAK Server if 8446 still shows WebTAK)'
             return True, 'CoreConfig already has LDAP (password matches .env)'
         # Password mismatch — update it in place and ensure adminGroup
@@ -9822,14 +9849,14 @@ def _apply_ldap_to_coreconfig():
             patch_path = os.path.join(BASE_DIR, 'CoreConfig.ldap-patch.xml')
             with open(patch_path, 'w') as f:
                 f.write(updated)
-            r = subprocess.run(['sudo', 'cp', os.path.abspath(patch_path), coreconfig_path],
+            r = subprocess.run([PRIV_CMD, 'cp', os.path.abspath(patch_path), coreconfig_path],
                 capture_output=True, text=True, timeout=10)
             if r.returncode != 0:
-                return False, f'Password resync: sudo cp failed: {r.stderr.strip()[:200]}'
+                return False, f'Password resync: {PRIV_CMD} cp failed: {r.stderr.strip()[:200]}'
             ag = subprocess.run(['grep', '-c', 'adminGroup="ROLE_ADMIN"', coreconfig_path], capture_output=True, text=True, timeout=5)
             if ag.returncode != 0 or (ag.stdout or '').strip() == '0':
                 return False, 'CoreConfig updated but adminGroup="ROLE_ADMIN" missing — run Connect LDAP again.'
-            r = subprocess.run('sudo systemctl restart takserver 2>&1',
+            r = subprocess.run(f'{PRIV_CMD} systemctl restart takserver 2>&1',
                 shell=True, capture_output=True, text=True, timeout=60)
             if r.returncode != 0:
                 return False, f'Password resynced but TAK Server restart failed: {r.stderr.strip()[:120]}'
@@ -9838,7 +9865,7 @@ def _apply_ldap_to_coreconfig():
     # Backup
     backup_path = coreconfig_path + '.pre-ldap.bak'
     if not os.path.exists(backup_path):
-        subprocess.run(['sudo', 'cp', coreconfig_path, backup_path], capture_output=True, timeout=10)
+        subprocess.run([PRIV_CMD, 'cp', coreconfig_path, backup_path], capture_output=True, timeout=10)
     # Build the replacement auth block — matches TAK Portal reference exactly
     ldap_line = '        <ldap'
     ldap_line += ' url="ldap://127.0.0.1:389"'
@@ -9877,22 +9904,22 @@ def _apply_ldap_to_coreconfig():
     # Sanity check the patched content
     if 'adm_ldapservice' not in patched:
         return False, f'BUG: patched content missing LDAP. start={start} end={end} auth_block_len={len(auth_block)}'
-    # Write to a temp file we own, then sudo cp to /opt/tak
+    # Write to a temp file we own, then PRIV_CMD cp to /opt/tak
     patch_path = os.path.join(BASE_DIR, 'CoreConfig.ldap-patch.xml')
     with open(patch_path, 'w') as f:
         f.write(patched)
-    r = subprocess.run(['sudo', 'cp', os.path.abspath(patch_path), coreconfig_path], capture_output=True, text=True, timeout=10)
+    r = subprocess.run([PRIV_CMD, 'cp', os.path.abspath(patch_path), coreconfig_path], capture_output=True, text=True, timeout=10)
     if r.returncode != 0:
-        return False, f'sudo cp failed: {r.stderr.strip()[:200]}. Run manually: sudo cp {os.path.abspath(patch_path)} /opt/tak/CoreConfig.xml && sudo systemctl restart takserver'
+        return False, f'{PRIV_CMD} cp failed: {r.stderr.strip()[:200]}. Run manually: {PRIV_CMD} cp {os.path.abspath(patch_path)} /opt/tak/CoreConfig.xml && {PRIV_CMD} systemctl restart takserver'
     # Verify the destination file has LDAP and adminGroup (required for 8446 admin UI and channel resolution)
     check = subprocess.run(['grep', '-c', 'adm_ldapservice', coreconfig_path], capture_output=True, text=True, timeout=5)
     if check.returncode != 0 or check.stdout.strip() == '0':
-        return False, f'File not updated. Run manually: sudo cp {os.path.abspath(patch_path)} /opt/tak/CoreConfig.xml && sudo systemctl restart takserver'
+        return False, f'File not updated. Run manually: {PRIV_CMD} cp {os.path.abspath(patch_path)} /opt/tak/CoreConfig.xml && {PRIV_CMD} systemctl restart takserver'
     ag = subprocess.run(['grep', '-c', 'adminGroup="ROLE_ADMIN"', coreconfig_path], capture_output=True, text=True, timeout=5)
     if ag.returncode != 0 or (ag.stdout or '').strip() == '0':
         return False, 'CoreConfig was written but adminGroup="ROLE_ADMIN" is missing — 8446 would show WebTAK for everyone. Run Connect LDAP again.'
     # Restart TAK Server
-    r = subprocess.run('sudo systemctl restart takserver 2>&1', shell=True, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(f'{PRIV_CMD} systemctl restart takserver 2>&1', shell=True, capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         return False, f'CoreConfig patched but TAK Server restart failed: {r.stderr.strip()[:120]}'
     return True, 'LDAP connected — CoreConfig patched and TAK Server restarted.'
@@ -10096,10 +10123,10 @@ def takserver_vacuum():
     data = request.get_json() or {}
     use_full = data.get('full') is True
     if use_full:
-        cmd = "sudo -u postgres psql -d cot -c 'VACUUM FULL;' 2>&1"
+        cmd = f"{PRIV_CMD} -u postgres psql -d cot -c 'VACUUM FULL;' 2>&1"
         timeout_sec = 3600
     else:
-        cmd = "sudo -u postgres psql -d cot -c 'VACUUM ANALYZE;' 2>&1"
+        cmd = f"{PRIV_CMD} -u postgres psql -d cot -c 'VACUUM ANALYZE;' 2>&1"
         timeout_sec = 600
     try:
         # Run from / so postgres user does not hit "Permission denied" on app dir (e.g. /root/infra-TAK)
@@ -10122,7 +10149,7 @@ def takserver_cot_db_size():
         return jsonify({'size_bytes': 0, 'size_human': 'N/A', 'error': 'TAK Server not installed'})
     try:
         r = subprocess.run(
-            "sudo -u postgres psql -t -A -c \"SELECT COALESCE(pg_database_size('cot'), 0);\" 2>/dev/null",
+            f'{PRIV_CMD} -u postgres psql -t -A -c "SELECT COALESCE(pg_database_size(\'cot\'), 0);" 2>/dev/null',
             shell=True, capture_output=True, text=True, timeout=10
         )
         size = int((r.stdout or '0').strip() or 0)
@@ -10387,13 +10414,13 @@ def takserver_rotate_intca():
             log("")
             log(f"Step 2/7: Creating new Intermediate CA: {new_ca_name}...")
             run('chmod +r /opt/tak/certs/cert-metadata.sh 2>/dev/null')
-            if not run(f'cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh ca "{new_ca_name}" 2>&1'):
+            if not run(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh ca "{new_ca_name}" 2>&1'):
                 raise Exception('Failed to create new intermediate CA')
             log(f"✓ Intermediate CA {new_ca_name} created")
 
             log("")
             log("Step 3/7: Creating new server certificate...")
-            if not run('cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh server takserver 2>&1'):
+            if not run(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh server takserver 2>&1'):
                 raise Exception('Failed to create server certificate')
             log("✓ Server certificate created (signed by new CA)")
 
@@ -10409,7 +10436,7 @@ def takserver_rotate_intca():
                 if name.lower() in skip or name.startswith('truststore-'):
                     continue
                 log(f"  Regenerating: {name}")
-                run(f'cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh client {name} 2>&1')
+                run(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh client {name} 2>&1')
                 regen_count += 1
             log(f"✓ {regen_count} client certificate(s) regenerated (signed by new CA)")
 
@@ -10632,19 +10659,19 @@ def takserver_rotate_rootca():
             log("")
             log(f"Step 2/8: Creating new Root CA: {new_root_name}...")
             run('chmod +r /opt/tak/certs/cert-metadata.sh 2>/dev/null')
-            if not run(f'cd /opt/tak/certs && echo "{new_root_name}" | sudo -u tak ./makeRootCa.sh 2>&1'):
+            if not run(f'cd /opt/tak/certs && echo "{new_root_name}" | {PRIV_CMD} -u tak ./makeRootCa.sh 2>&1'):
                 raise Exception('Failed to create new Root CA')
             log(f"✓ Root CA {new_root_name} created")
 
             log("")
             log(f"Step 3/8: Creating new Intermediate CA: {new_int_name}...")
-            if not run(f'cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh ca "{new_int_name}" 2>&1'):
+            if not run(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh ca "{new_int_name}" 2>&1'):
                 raise Exception('Failed to create new Intermediate CA')
             log(f"✓ Intermediate CA {new_int_name} created")
 
             log("")
             log("Step 4/8: Creating new server certificate...")
-            if not run('cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh server takserver 2>&1'):
+            if not run(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh server takserver 2>&1'):
                 raise Exception('Failed to create server certificate')
             log("✓ Server certificate created")
 
@@ -10653,9 +10680,9 @@ def takserver_rotate_rootca():
             skip = {'takserver', 'root-ca', 'ca', new_root_name.lower(), new_int_name.lower(),
                     old_root_name.lower(), old_int_name.lower()}
             # We need to create admin and user first since old files were cleared
-            run('cd /opt/tak/certs && sudo -u tak ./makeCert.sh client admin 2>&1')
+            run(f'cd /opt/tak/certs && {PRIV_CMD} -u tak ./makeCert.sh client admin 2>&1')
             log("  Regenerated: admin")
-            run('cd /opt/tak/certs && sudo -u tak ./makeCert.sh client user 2>&1')
+            run(f'cd /opt/tak/certs && {PRIV_CMD} -u tak ./makeCert.sh client user 2>&1')
             log("  Regenerated: user")
             # Check settings or old backup for any other client cert names to recreate
             regen_count = 2
@@ -10776,7 +10803,7 @@ def takserver_create_client_cert():
     try:
         subprocess.run('chmod +r /opt/tak/certs/cert-metadata.sh 2>/dev/null', shell=True, capture_output=True)
         r = subprocess.run(
-            f'sudo -u tak bash -c "cd /opt/tak/certs && ./makeCert.sh client {cert_name}" 2>&1',
+            f'{PRIV_CMD} -u tak bash -c "cd /opt/tak/certs && ./makeCert.sh client {cert_name}" 2>&1',
             shell=True, capture_output=True, text=True, timeout=30
         )
         if r.returncode != 0:
@@ -10969,8 +10996,8 @@ def takserver_uninstall():
         subprocess.run('rm -rf /opt/tak', shell=True, capture_output=True)
         steps.append('Removed /opt/tak')
     # Clean up PostgreSQL database and user (so redeploys start clean)
-    subprocess.run("sudo -u postgres psql -c \"DROP DATABASE IF EXISTS cot;\" 2>/dev/null; true", shell=True, capture_output=True, timeout=30)
-    subprocess.run("sudo -u postgres psql -c \"DROP USER IF EXISTS martiuser;\" 2>/dev/null; true", shell=True, capture_output=True, timeout=30)
+    subprocess.run(f'{PRIV_CMD} -u postgres psql -c "DROP DATABASE IF EXISTS cot;" 2>/dev/null; true', shell=True, capture_output=True, timeout=30)
+    subprocess.run(f'{PRIV_CMD} -u postgres psql -c "DROP USER IF EXISTS martiuser;" 2>/dev/null; true', shell=True, capture_output=True, timeout=30)
     steps.append('Cleaned up PostgreSQL (cot database, martiuser)')
     # Clean up GPG verification artifacts
     subprocess.run('rm -rf /usr/share/debsig/keyrings/* /etc/debsig/policies/* 2>/dev/null; true', shell=True, capture_output=True, timeout=10)
@@ -11001,7 +11028,7 @@ def upload_takserver_package():
         f.save(fp)
         sz = round(os.path.getsize(fp) / (1024*1024), 1)
         if fn.endswith('.deb'):
-            if 'rocky' in os_type:
+            if 'rocky' in os_type or 'rhel' in os_type:
                 os.remove(fp)
                 return jsonify({'error': f'DEB uploaded but system is {os_type}. Need .rpm.'}), 400
             results['package'] = {'filename': fn, 'filepath': fp, 'pkg_type': 'deb', 'size_mb': sz}
@@ -11058,18 +11085,18 @@ upgrade_status = {'running': False, 'complete': False, 'error': False}
 @app.route('/api/takserver/update', methods=['POST'])
 @login_required
 def takserver_update():
-    """Run TAK Server upgrade (Ubuntu: apt install ./takserver_*.deb). User uploads new .deb first."""
+    """Run TAK Server upgrade. Ubuntu: apt install .deb; RHEL/Rocky: dnf install .rpm."""
     if not os.path.exists('/opt/tak'):
         return jsonify({'error': 'TAK Server not installed. Deploy TAK Server first.'}), 400
     settings = load_settings()
-    if settings.get('pkg_mgr', 'apt') != 'apt':
-        return jsonify({'error': 'TAK Server update is supported on Ubuntu only for now. Rocky/RHEL coming later.'}), 400
+    pkg_mgr = settings.get('pkg_mgr', 'apt')
+    ext = '.rpm' if pkg_mgr == 'dnf' else '.deb'
     if upgrade_status['running']:
         return jsonify({'error': 'Update already in progress'}), 409
-    pkg_files = sorted([f for f in os.listdir(UPLOAD_DIR) if f.endswith('.deb')],
+    pkg_files = sorted([f for f in os.listdir(UPLOAD_DIR) if f.endswith(ext)],
         key=lambda f: os.path.getmtime(os.path.join(UPLOAD_DIR, f)), reverse=True)
     if not pkg_files:
-        return jsonify({'error': 'No .deb package found. Upload the new TAK Server .deb from tak.gov first.'}), 400
+        return jsonify({'error': f'No {ext} package found. Upload the new TAK Server {ext} from tak.gov first.'}), 400
     upgrade_log.clear()
     upgrade_status.update({'running': True, 'complete': False, 'error': False})
     threading.Thread(target=run_takserver_upgrade, args=(os.path.join(UPLOAD_DIR, pkg_files[0]),), daemon=True).start()
@@ -11092,12 +11119,21 @@ def run_takserver_upgrade(pkg_path):
         ulog("=" * 50)
         ulog("TAK Server update (upgrade)")
         ulog("=" * 50)
-        wait_for_apt_lock(ulog, upgrade_log)
+        pkg_mgr = load_settings().get('pkg_mgr', 'apt')
+        if pkg_mgr == 'apt':
+            wait_for_apt_lock(ulog, upgrade_log)
+        else:
+            wait_for_dnf_lock(ulog, upgrade_log)
         ulog("")
         ulog("Installing upgrade package: " + pkg_name)
-        r = subprocess.run(
-            f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y ./{pkg_name} 2>&1',
-            shell=True, cwd=os.path.dirname(pkg_path), capture_output=True, text=True, timeout=600)
+        if pkg_mgr == 'apt':
+            r = subprocess.run(
+                f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y ./{pkg_name} 2>&1',
+                shell=True, cwd=os.path.dirname(pkg_path), capture_output=True, text=True, timeout=600)
+        else:
+            r = subprocess.run(
+                f'dnf install -y {pkg_path} 2>&1',
+                shell=True, capture_output=True, text=True, timeout=600)
         out = (r.stdout or '') + (r.stderr or '')
         for line in out.strip().split('\n'):
             if line.strip() and 'NEEDRESTART' not in line:
@@ -11214,20 +11250,29 @@ def run_takserver_deploy(config):
         wait_for_package_lock()
         if deploy_status.get('cancelled'): return
 
+        settings = load_settings()
+        pkg_mgr = settings.get('pkg_mgr', 'apt')
+        pkg_type = 'rpm' if pkg.endswith('.rpm') else 'deb'
+
         log_step(""); log_step("━━━ Step 1/9: System Limits ━━━")
         run_cmd('grep -q "soft nofile 32768" /etc/security/limits.conf || echo -e "* soft nofile 32768\\n* hard nofile 32768" >> /etc/security/limits.conf', "Increasing JVM thread limits...")
         log_step("✓ System limits configured")
 
-        log_step(""); log_step("━━━ Step 2/9: PostgreSQL Repository ━━━")
-        run_cmd('DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y lsb-release > /dev/null 2>&1', "Installing prerequisites...", check=False)
-        run_cmd('install -d /usr/share/postgresql-common/pgdg', check=False)
-        run_cmd('curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc 2>/dev/null', "Adding PostgreSQL GPG key...")
-        run_cmd('echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list')
-        run_cmd('apt-get update -qq > /dev/null 2>&1', "Updating package lists...")
-        log_step("✓ PostgreSQL repository configured")
+        if pkg_mgr == 'apt':
+            log_step(""); log_step("━━━ Step 2/9: PostgreSQL Repository ━━━")
+            run_cmd('DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y lsb-release > /dev/null 2>&1', "Installing prerequisites...", check=False)
+            run_cmd('install -d /usr/share/postgresql-common/pgdg', check=False)
+            run_cmd('curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc 2>/dev/null', "Adding PostgreSQL GPG key...")
+            run_cmd('echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list')
+            run_cmd('apt-get update -qq > /dev/null 2>&1', "Updating package lists...")
+            log_step("✓ PostgreSQL repository configured")
+        else:
+            log_step(""); log_step("━━━ Step 2/9: PostgreSQL (RHEL/Rocky) ━━━")
+            run_cmd('dnf install -y postgresql-server postgresql 2>/dev/null || true', "Ensuring PostgreSQL available...", check=False)
+            log_step("✓ PostgreSQL ready (RHEL/Rocky)")
 
         log_step(""); log_step("━━━ Step 3/9: Package Verification ━━━")
-        if config.get('gpg_key_path') and config.get('policy_path'):
+        if pkg_mgr == 'apt' and config.get('gpg_key_path') and config.get('policy_path'):
             log_step("GPG key and policy found — verifying...")
             run_cmd('DEBIAN_FRONTEND=noninteractive apt-get install -y debsig-verify', check=False)
             r = subprocess.run(f"grep 'id=' {config['policy_path']} | head -1 | sed 's/.*id=\"\\([^\"]*\\)\".*/\\1/'", shell=True, capture_output=True, text=True)
@@ -11251,27 +11296,27 @@ def run_takserver_deploy(config):
                         for line in v.stderr.strip().split('\n'):
                             if line.strip(): log_step(f"  {line.strip()}")
         else:
-            log_step("No GPG key/policy — skipping verification")
+            log_step("No GPG key/policy — skipping verification" + (" (RPM: use rpm --checksig if needed)" if pkg_mgr == 'dnf' else ""))
 
         log_step(""); log_step("━━━ Step 4/9: Installing TAK Server ━━━")
-        settings = load_settings()
-        if settings.get('pkg_mgr', 'apt') == 'apt':
+        if pkg_mgr == 'apt':
             wait_for_apt_lock(log_step, deploy_log)
+        else:
+            wait_for_dnf_lock(log_step, deploy_log)
         log_step(f"Installing {pkg_name}...")
-        # Primary: apt-get install handles dependencies automatically
-        r1 = run_cmd(f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y {pkg} 2>&1', check=False)
-        if not r1:
-            # Fallback: dpkg + fix-broken (proven chain from Ubuntu script)
-            log_step("  apt-get failed, trying dpkg + dependency fix...")
-            run_cmd(f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l dpkg -i {pkg} 2>&1', check=False)
-            run_cmd('DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -f -y 2>&1', "  Resolving dependencies...", check=False)
-        # PostgreSQL cluster check (from proven script - sometimes cluster isn't created)
-        pg_check = subprocess.run('pg_lsclusters 2>/dev/null | grep -q "15"', shell=True, capture_output=True)
-        if pg_check.returncode != 0:
-            log_step("  Creating PostgreSQL 15 cluster...")
-            run_cmd('pg_createcluster 15 main --start 2>&1', check=False)
-        # dpkg --configure if partially installed (from proven script)
-        run_cmd('dpkg --configure -a 2>&1', check=False, quiet=True)
+        if pkg_mgr == 'apt':
+            r1 = run_cmd(f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -y {pkg} 2>&1', check=False)
+            if not r1:
+                log_step("  apt-get failed, trying dpkg + dependency fix...")
+                run_cmd(f'DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l dpkg -i {pkg} 2>&1', check=False)
+                run_cmd('DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l apt-get install -f -y 2>&1', "  Resolving dependencies...", check=False)
+            pg_check = subprocess.run('pg_lsclusters 2>/dev/null | grep -q "15"', shell=True, capture_output=True)
+            if pg_check.returncode != 0:
+                log_step("  Creating PostgreSQL 15 cluster...")
+                run_cmd('pg_createcluster 15 main --start 2>&1', check=False)
+            run_cmd('dpkg --configure -a 2>&1', check=False, quiet=True)
+        else:
+            run_cmd(f'dnf install -y {pkg} 2>&1', check=True)
         if not os.path.exists('/opt/tak'):
             log_step("✗ FATAL: /opt/tak not found after install"); deploy_status.update({'error': True, 'running': False}); return
         log_step("✓ TAK Server installed")
@@ -11287,9 +11332,14 @@ def run_takserver_deploy(config):
         log_step("✓ TAK Server started")
 
         log_step(""); log_step("━━━ Step 6/9: Configuring Firewall ━━━")
-        for p in ['22/tcp', '8089/tcp', '8443/tcp', '8446/tcp', '5001/tcp']:
-            run_cmd(f'ufw allow {p} > /dev/null 2>&1')
-        run_cmd('ufw --force enable > /dev/null 2>&1')
+        if pkg_mgr == 'apt':
+            for p in ['22/tcp', '8089/tcp', '8443/tcp', '8446/tcp', '5001/tcp']:
+                run_cmd(f'ufw allow {p} > /dev/null 2>&1')
+            run_cmd('ufw --force enable > /dev/null 2>&1')
+        else:
+            for p in ['22/tcp', '8089/tcp', '8443/tcp', '8446/tcp', '5001/tcp']:
+                run_cmd(f'firewall-cmd --permanent --add-port={p} 2>/dev/null || true')
+            run_cmd('firewall-cmd --reload 2>/dev/null || true')
         log_step("✓ Firewall configured (22, 8089, 8443, 8446, 5001)")
 
         log_step(""); log_step("━━━ Step 7/9: Generating Certificates ━━━")
@@ -11307,15 +11357,15 @@ def run_takserver_deploy(config):
             run_cmd(f'sed -i "s/{old}/{new}/g" /opt/tak/certs/cert-metadata.sh', check=False)
         run_cmd('chown -R tak:tak /opt/tak/certs/')
         log_step(f"Creating Root CA: {root_ca}...")
-        run_cmd(f'cd /opt/tak/certs && echo "{root_ca}" | sudo -u tak ./makeRootCa.sh 2>&1', quiet=True)
+        run_cmd(f'cd /opt/tak/certs && echo "{root_ca}" | {PRIV_CMD} -u tak ./makeRootCa.sh 2>&1', quiet=True)
         log_step(f"Creating Intermediate CA: {int_ca}...")
-        run_cmd(f'cd /opt/tak/certs && echo "y" | sudo -u tak ./makeCert.sh ca "{int_ca}" 2>&1', quiet=True)
+        run_cmd(f'cd /opt/tak/certs && echo "y" | {PRIV_CMD} -u tak ./makeCert.sh ca "{int_ca}" 2>&1', quiet=True)
         log_step("Creating server certificate...")
-        run_cmd('cd /opt/tak/certs && sudo -u tak ./makeCert.sh server takserver 2>&1', quiet=True)
+        run_cmd(f'cd /opt/tak/certs && {PRIV_CMD} -u tak ./makeCert.sh server takserver 2>&1', quiet=True)
         log_step("Creating admin certificate...")
-        run_cmd('cd /opt/tak/certs && sudo -u tak ./makeCert.sh client admin 2>&1', quiet=True)
+        run_cmd(f'cd /opt/tak/certs && {PRIV_CMD} -u tak ./makeCert.sh client admin 2>&1', quiet=True)
         log_step("Creating user certificate...")
-        run_cmd('cd /opt/tak/certs && sudo -u tak ./makeCert.sh client user 2>&1', quiet=True)
+        run_cmd(f'cd /opt/tak/certs && {PRIV_CMD} -u tak ./makeCert.sh client user 2>&1', quiet=True)
         log_step("✓ All certificates created")
         log_step("Importing root CA into TAK clients truststore...")
         run_cmd(f'keytool -import -alias root-ca -file /opt/tak/certs/files/root-ca.pem -keystore /opt/tak/certs/files/truststore-{int_ca}.jks -storepass atakatak -noprompt 2>&1', check=False)
@@ -11687,13 +11737,18 @@ def run_full_uninstall():
         subprocess.run(['systemctl', 'stop', 'takserver'], capture_output=True, timeout=60)
         subprocess.run(['systemctl', 'disable', 'takserver'], capture_output=True, timeout=30)
         subprocess.run('pkill -9 -f takserver 2>/dev/null; true', shell=True, capture_output=True)
-        pkg_result = subprocess.run('dpkg -l | grep takserver', shell=True, capture_output=True, text=True)
-        if 'takserver' in (pkg_result.stdout or ''):
-            subprocess.run('DEBIAN_FRONTEND=noninteractive apt-get remove -y takserver 2>/dev/null; true', shell=True, capture_output=True, timeout=120)
+        if pkg_mgr == 'apt':
+            pkg_result = subprocess.run('dpkg -l | grep takserver', shell=True, capture_output=True, text=True)
+            if 'takserver' in (pkg_result.stdout or ''):
+                subprocess.run('DEBIAN_FRONTEND=noninteractive apt-get remove -y takserver 2>/dev/null; true', shell=True, capture_output=True, timeout=120)
+        else:
+            pkg_result = subprocess.run('rpm -q takserver 2>/dev/null', shell=True, capture_output=True, text=True)
+            if pkg_result.returncode == 0:
+                subprocess.run('dnf remove -y takserver 2>/dev/null; true', shell=True, capture_output=True, timeout=120)
         if os.path.exists('/opt/tak'):
             subprocess.run('rm -rf /opt/tak', shell=True, capture_output=True)
-        subprocess.run("sudo -u postgres psql -c \"DROP DATABASE IF EXISTS cot;\" 2>/dev/null; true", shell=True, capture_output=True, timeout=30)
-        subprocess.run("sudo -u postgres psql -c \"DROP USER IF EXISTS martiuser;\" 2>/dev/null; true", shell=True, capture_output=True, timeout=30)
+        subprocess.run(f'{PRIV_CMD} -u postgres psql -c "DROP DATABASE IF EXISTS cot;" 2>/dev/null; true', shell=True, capture_output=True, timeout=30)
+        subprocess.run(f'{PRIV_CMD} -u postgres psql -c "DROP USER IF EXISTS martiuser;" 2>/dev/null; true', shell=True, capture_output=True, timeout=30)
         subprocess.run('rm -rf /usr/share/debsig/keyrings/* /etc/debsig/policies/* 2>/dev/null; true', shell=True, capture_output=True, timeout=10)
         for f in os.listdir(UPLOAD_DIR):
             try:

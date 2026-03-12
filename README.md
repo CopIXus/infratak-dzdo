@@ -4,13 +4,13 @@ Tea Awarness Kit Infrastructure Management Platform.
 
 One clone. One password. One URL. Manage everything from your browser.
 
-**Goal: universal installer.** Currently supported platform: **Ubuntu 22.04 LTS**.
+**Goal: universal installer.** Supported platforms: **Ubuntu 22.04 LTS**, **RHEL 9**, **Rocky Linux 9**. RHEL 9 supports **dzdo-only** (no sudo) environments.
 
 ## What Is This?
 
 A unified web console for deploying and managing TAK ecosystem infrastructure:
 
-- **TAK Server** — Upload your .deb, configure, deploy, manage CoreConfig — all from the browser
+- **TAK Server** — Upload your .deb (Ubuntu) or .rpm (RHEL/Rocky), configure, deploy, manage CoreConfig — all from the browser
 - **Authentik** — Identity provider with automated LDAP configuration for TAK Server auth
 - **TAK Portal** — User and certificate management portal with auto-configured Authentik + TAK Server integration
 - **Caddy SSL** — Let's Encrypt certificates and reverse proxy management
@@ -26,28 +26,33 @@ No more SSH. No more editing XML by hand. No more running scripts and hoping.
 
 ## Quick Start
 
+**Ubuntu:**
 ```bash
-git clone --depth 1 https://github.com/takwerx/infra-TAK.git
-cd infra-TAK
+git clone --depth 1 https://github.com/CopIXus/infratak-dzdo.git
+cd infratak-dzdo
 chmod +x start.sh
 sudo ./start.sh
 ```
 
-If you explicitly want the development branch, use:
-
-`git clone --depth 1 -b dev https://github.com/takwerx/infra-TAK.git`
+**RHEL 9 (dzdo-only):** Use `dzdo` instead of `sudo`:
+```bash
+git clone --depth 1 https://github.com/CopIXus/infratak-dzdo.git
+cd infratak-dzdo
+chmod +x start.sh
+dzdo ./start.sh
+```
 
 The script will:
-1. Detect your OS (**Ubuntu 22.04 only** for now; goal is a universal installer)
+1. Detect your OS (Ubuntu 22.04, RHEL 9, Rocky Linux 9)
 2. Install Python dependencies
 3. Ask you to set an admin password
 4. Start the web console
 
 Then open your browser to the URL shown and log in.
 
-**Updating:** After `git pull`, restart the console with `sudo systemctl restart takwerx-console`. Your password and config live in the install directory’s `.config/`. If you run `start.sh` from a different clone or path, the service keeps using the original install directory so your password continues to work.
+**Updating:** After `git pull`, restart the console with `sudo systemctl restart takwerx-console` (or `dzdo systemctl restart takwerx-console` on RHEL). Your password and config live in the install directory’s `.config/`. If you run `start.sh` from a different clone or path, the service keeps using the original install directory so your password continues to work.
 
-**Password not working after update?** Use the **backdoor**: **https://&lt;VPS_IP&gt;:5001**. If login spins or fails, on the server run (from the directory where you do `git pull`, e.g. `/root/infra-TAK`): **`sudo ./fix-console-after-pull.sh`** — it pins the config path in the systemd unit and prompts you to set a new password so you can log in again. Alternatively run `sudo ./reset-console-password.sh` from that same directory. After pulling, open the Caddy module and re-save your domain once so the Caddyfile (login bypass) is applied.
+**Password not working after update?** Use the **backdoor**: **https://&lt;VPS_IP&gt;:5001**. If login spins or fails, on the server run (from the directory where you do `git pull`, e.g. `/root/infratak-dzdo`): **`sudo ./fix-console-after-pull.sh`** (or **`dzdo ./fix-console-after-pull.sh`** on RHEL) — it pins the config path in the systemd unit and prompts you to set a new password so you can log in again. Alternatively run `sudo ./reset-console-password.sh` (or `dzdo ./reset-console-password.sh`) from that same directory. After pulling, open the Caddy module and re-save your domain once so the Caddyfile (login bypass) is applied.
 
 ## Recovery / backdoor (when Authentik or Caddy is broken)
 
@@ -55,11 +60,11 @@ If Authentik or Caddy is down and you can’t reach **https://infratak.yourdomai
 
 - **Backdoor:** Open **https://&lt;VPS_IP&gt;:5001** in your browser (use the server’s real IP, not the domain). Log in with the **console password** you set when you ran `start.sh`. That path skips Caddy and Authentik, so you can get back into the console and fix things.
 
-The console password is stored as a **hash** in the install directory at `.config/auth.json` (e.g. `/root/infra-TAK/.config/auth.json`). You **cannot** recover the plaintext password from that file. If you forget it:
+The console password is stored as a **hash** in the install directory at `.config/auth.json` (e.g. `/root/infratak-dzdo/.config/auth.json`). You **cannot** recover the plaintext password from that file. If you forget it:
 
 ```bash
-cd /root/infra-TAK   # or your install path
-sudo ./reset-console-password.sh
+cd /root/infratak-dzdo   # or your install path
+sudo ./reset-console-password.sh   # or dzdo ./reset-console-password.sh on RHEL
 ```
 
 Enter a new password twice; the script updates `.config/auth.json` and restarts the console. Then use **https://&lt;VPS_IP&gt;:5001** with the new password. Store the console password somewhere safe (e.g. password manager); it’s your only way in when the domain or Authentik is broken.
@@ -75,7 +80,7 @@ Deploy services in this order — each step auto-configures the next:
          ↓
 3. Email Relay       Optional; configure SMTP for password recovery
          ↓
-4. TAK Server        Upload .deb, deploy, configure ports + certs
+4. TAK Server        Upload .deb (Ubuntu) or .rpm (RHEL/Rocky), deploy, configure ports + certs
          ↓
 5. Connect LDAP      On TAK Server page — patches CoreConfig, creates webadmin in Authentik
          ↓
@@ -98,20 +103,20 @@ After deployment, create users in TAK Portal — they flow through Authentik →
 
 ## Requirements
 
-- **Ubuntu 22.04 LTS** (currently the only supported platform; goal is a universal installer). Fresh installation recommended.
-- **Root access**
+- **Ubuntu 22.04 LTS**, **RHEL 9**, or **Rocky Linux 9**. Fresh installation recommended.
+- **Root access** (via `sudo` or `dzdo` on dzdo-only RHEL systems)
 - **RAM:** 8 GB+ recommended for TAK Server; more if you run the full stack (Authentik, TAK Portal, Node-RED, MediaMTX, CloudTAK, Guard Dog).
 - **Disk:** At max deployment (all modules) you can sit around **26 GB** used. Plan for growth: CoT data, logs, and retention. **50 GB+** disk is recommended so you have headroom; TAK Server’s own minimum is 40 GB per the official configuration guide. Apply Docker log limits (Guard Dog → Apply Docker log limits) to avoid containers filling the disk.
 - **CPU:** Enough cores for all processes (TAK Server, PostgreSQL, Authentik, Caddy, Node-RED, etc.). TAK Server’s minimum is 4 cores; more is better for the full stack.
 - **Internet** connection for initial setup.
-- **TAK Server .deb** package from [tak.gov](https://tak.gov).
+- **TAK Server** package from [tak.gov](https://tak.gov): `.deb` for Ubuntu, `.rpm` for RHEL/Rocky.
 
 ## Architecture
 
 ```
 start.sh                    ← One CLI command to launch everything
 ├── app.py                  ← Flask web application (HTTPS on :5001)
-├── uploads/                ← Uploaded .deb packages
+├── uploads/                ← Uploaded .deb or .rpm packages
 └── .config/                ← Auth + settings (gitignored)
 ```
 
@@ -147,6 +152,10 @@ start.sh                    ← One CLI command to launch everything
 - Session-based authentication
 - All config files are 600 permissions
 - Authentik bootstrap credentials auto-generated per deployment
+
+## dzdo and RHEL 9
+
+This fork supports **dzdo-only** Red Hat Enterprise Linux 9 environments where `sudo` is not available. See **[docs/DZDO-RHEL9.md](docs/DZDO-RHEL9.md)** for prerequisites, dzdo policy requirements, and known differences from Ubuntu.
 
 ## Design notes
 

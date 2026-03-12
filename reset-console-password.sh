@@ -1,7 +1,7 @@
 #!/bin/bash
 # Reset the infra-TAK console admin password. Run on the server from the install directory:
 #   cd /root/infra-TAK   # or your install path
-#   sudo ./reset-console-password.sh
+#   sudo ./reset-console-password.sh  (or dzdo ./reset-console-password.sh on RHEL)
 set -e
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$INSTALL_DIR/.config"
